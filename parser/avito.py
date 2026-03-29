@@ -205,13 +205,29 @@ async def fetch_avito_listings() -> list[dict[str, Any]]:
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled"],
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--no-sandbox",
+            ],
         )
+        ua = random.choice(USER_AGENTS)
         context = await browser.new_context(
-            user_agent=random.choice(USER_AGENTS),
+            user_agent=ua,
             viewport={"width": 1920, "height": 1080},
             locale="ru-RU",
+            timezone_id="Europe/Moscow",
+            extra_http_headers={
+                "Accept-Language": "ru-RU,ru;q=0.9",
+            },
         )
+        # Stealth: скрыть webdriver
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'languages', {get: () => ['ru-RU', 'ru']});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            window.chrome = {runtime: {}};
+        """)
         page = await context.new_page()
 
         try:
