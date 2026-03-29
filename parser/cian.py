@@ -107,21 +107,44 @@ def parse_cian_offer(offer: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _extract_offers_from_html(html: str) -> list[dict]:
-    """Извлечь JSON объявления из HTML страницы ЦИАН."""
-    patterns = [
-        r'"offersSerialized"\s*:\s*(\[[\s\S]*?\])\s*,\s*"',
-        r'"offers"\s*:\s*(\[[\s\S]*?\])\s*,\s*"',
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, html)
-        if match:
-            try:
-                data = json.loads(match.group(1))
-                if data:
-                    return data
-            except json.JSONDecodeError:
-                continue
-    return []
+    """Извлечь JSON объявления из HTML страницы ЦИАН.
+
+    Данные в initialState -> results -> offers.
+    Используем bracket-counting для извлечения массива.
+    """
+    # Ищем начало массива offers
+    marker = '"offers":['
+    idx = html.find(marker)
+    if idx == -1:
+        logger.debug("ЦИАН: маркер 'offers' не найден в HTML")
+        return []
+
+    start = idx + len(marker) - 1  # позиция '['
+    # Bracket counting для нахождения конца массива
+    depth = 0
+    end = start
+    for i in range(start, min(start + 5_000_000, len(html))):
+        c = html[i]
+        if c == '[':
+            depth += 1
+        elif c == ']':
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+
+    if depth != 0:
+        logger.warning("ЦИАН: не удалось найти конец массива offers")
+        return []
+
+    json_str = html[start:end]
+    try:
+        offers = json.loads(json_str)
+        logger.info("ЦИАН: извлечено %d offers из initialState", len(offers))
+        return offers
+    except json.JSONDecodeError as e:
+        logger.warning("ЦИАН: ошибка парсинга JSON offers: %s", e)
+        return []
 
 
 def _parse_html_cards(html: str) -> list[dict]:
