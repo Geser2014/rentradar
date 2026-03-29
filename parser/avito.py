@@ -245,11 +245,15 @@ async def fetch_avito_listings() -> list[dict[str, Any]]:
                     logger.warning("Авито: ошибка загрузки стр. %d: %s", page_num, e)
                     break
 
-                # Проверка на капчу
+                # Проверка на капчу (только если страница маленькая -- реальная капча)
                 content = await page.content()
-                if "captcha" in content.lower() or "blocked" in content.lower():
-                    logger.warning("Авито: обнаружена капча/блокировка на стр. %d, прерываем", page_num)
-                    break
+                if len(content) < 10000 and ("captcha" in content.lower() or "blocked" in content.lower()):
+                    logger.warning("Авито: капча на стр. %d (%d байт), ждём 10с", page_num, len(content))
+                    await asyncio.sleep(10)
+                    content = await page.content()
+                    if len(content) < 10000:
+                        logger.warning("Авито: капча не прошла, прерываем")
+                        break
 
                 # Скролл вниз для подгрузки
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
