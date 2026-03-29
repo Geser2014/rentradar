@@ -246,9 +246,8 @@ async def fetch_cian_listings() -> list[dict[str, Any]]:
                 logger.info("ЦИАН: загрузка стр. %d", page_num)
 
                 try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                    # Ждём загрузки контента
-                    await asyncio.sleep(3)
+                    await page.goto(url, wait_until="networkidle", timeout=60000)
+                    await asyncio.sleep(5)
                     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                     await asyncio.sleep(2)
                 except Exception as e:
@@ -256,13 +255,14 @@ async def fetch_cian_listings() -> list[dict[str, Any]]:
                     break
 
                 html = await page.content()
+                logger.info("ЦИАН: стр. %d загружена, %d байт", page_num, len(html))
 
-                # Капча?
-                if "captcha" in html.lower() and len(html) < 5000:
-                    logger.warning("ЦИАН: капча на стр. %d, ждём 10с и пробуем снова", page_num)
+                # Капча только если страница маленькая (нет данных)
+                if len(html) < 50000 and '"offers"' not in html:
+                    logger.warning("ЦИАН: страница слишком маленькая, возможна капча")
                     await asyncio.sleep(10)
                     html = await page.content()
-                    if "captcha" in html.lower() and len(html) < 5000:
+                    if len(html) < 50000:
                         logger.warning("ЦИАН: капча не прошла, прерываем")
                         break
 
