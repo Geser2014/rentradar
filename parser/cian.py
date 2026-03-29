@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 CIAN_SEARCH_URL = (
     "https://spb.cian.ru/cat.php"
     "?deal_type=rent&engine_version=2&offer_type=flat"
-    "&region=2&room0=1&type=4&sort=creation_date_desc"
+    "&region=2&room0=1&object_type%5B0%5D=2&type=4&sort=creation_date_desc"
     f"&minprice={FILTERS['price_min']}&maxprice={FILTERS['price_max']}"
     f"&mintarea={FILTERS['area_min']}&maxtarea={FILTERS['area_max']}"
 )
@@ -67,6 +67,11 @@ def parse_cian_offer(offer: dict[str, Any]) -> dict[str, Any] | None:
     try:
         geo = offer.get("geo", {})
         address_parts = geo.get("address", [])
+        # Пропускаем комнаты -- нужны только студии/квартиры
+        flat_type = offer.get("flatType", "")
+        if flat_type == "rooms":
+            return None
+
         if not is_in_zone(address_parts):
             return None
 
