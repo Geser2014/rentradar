@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мониторинг аренды — Студии СПб</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0c0c0e;
+  --s1: #141417;
+  --s2: #1c1c21;
+  --s3: #28282f;
+  --b1: rgba(255,255,255,0.055);
+  --b2: rgba(255,255,255,0.10);
+  --b3: rgba(255,255,255,0.17);
+  --text: #eeede6;
+  --muted: #777770;
+  --muted2: #444440;
+  --green: #1d9e75;
+  --green-l: #5dcaa5;
+  --amber: #ef9f27;
+  --red-l: #ef9f7a;
+  --red: #d85a30;
+  --blue: #378add;
+  --purple: #9f7cdb;
+  --r: 10px;
+  --rsm: 7px;
+}
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  min-height: 100vh; padding: 2rem 1rem 4rem;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+
+h1 { font-size: 1.85rem; font-weight: normal; letter-spacing: -.025em; margin-bottom: .25rem; }
+.sub { font-size: 12px; color: var(--muted); font-family: 'Courier New', monospace; margin-bottom: .4rem; }
+.zone { font-size: 11px; color: var(--muted2); font-family: 'Courier New', monospace; margin-bottom: 2rem; }
+
+/* ── SUMMARY CARDS ── */
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
+.scard {
+  background: var(--s1); border: 0.5px solid var(--b2);
+  border-radius: var(--r); padding: 1rem 1.2rem;
+}
+.scard-label {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); font-family: 'Courier New', monospace; margin-bottom: 6px;
+}
+.scard-value {
+  font-size: 1.55rem; font-weight: bold;
+  font-family: 'Courier New', monospace; line-height: 1.2;
+}
+.scard-value.g { color: var(--green-l); }
+.scard-value.r { color: var(--red-l); }
+.scard-value.a { color: var(--amber); }
+.scard-value.b { color: var(--blue); }
+.scard-delta {
+  font-size: 11px; font-family: 'Courier New', monospace;
+  margin-top: 4px;
+}
+.scard-delta.up { color: var(--red-l); }
+.scard-delta.down { color: var(--green-l); }
+.scard-delta.neutral { color: var(--muted2); }
+
+/* ── CARD ── */
+.card {
+  background: var(--s1); border: 0.5px solid var(--b2);
+  border-radius: var(--r); padding: 1.2rem 1.4rem; margin-bottom: .85rem;
+}
+.card-head {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); font-family: 'Courier New', monospace; margin-bottom: 1rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* ── PERIOD TABS ── */
+.period-tabs { display: flex; gap: 4px; }
+.period-tab {
+  background: var(--s2); border: 0.5px solid var(--b2); border-radius: var(--rsm);
+  color: var(--muted); font-size: 11px; font-family: 'Courier New', monospace;
+  padding: 4px 12px; cursor: pointer; transition: all .15s;
+}
+.period-tab.active { background: var(--green); color: #fff; border-color: var(--green); }
+.period-tab:hover:not(.active) { border-color: var(--b3); color: var(--text); }
+
+/* ── CHART ── */
+.chart-wrap { position: relative; width: 100%; height: 280px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; }
+.legend span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-family: 'Courier New', monospace; }
+.dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── TABLE ── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-family: 'Courier New', monospace; font-size: 12px; min-width: 900px; }
+thead th {
+  color: var(--muted); font-weight: normal; text-align: left;
+  padding: .55rem .65rem; letter-spacing: .04em; white-space: nowrap;
+  border-bottom: 0.5px solid var(--b2); cursor: pointer; user-select: none;
+}
+thead th:hover { color: var(--text); }
+thead th.num { text-align: right; }
+tbody tr { border-bottom: 0.5px solid var(--b1); transition: background .1s; }
+tbody tr:hover { background: var(--s2); }
+td { padding: .45rem .65rem; white-space: nowrap; }
+td.num { text-align: right; }
+td.g { color: var(--green-l); }
+td.a { color: var(--amber); }
+td.r { color: var(--red-l); }
+td.dim { color: var(--muted2); }
+td a { color: var(--blue); text-decoration: none; }
+td a:hover { text-decoration: underline; }
+
+/* ── AGE BADGES ── */
+.age-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-family: 'Courier New', monospace; font-weight: bold;
+}
+.age-green { background: rgba(29,158,117,.18); color: var(--green-l); border: 0.5px solid rgba(29,158,117,.3); }
+.age-yellow { background: rgba(239,159,39,.15); color: var(--amber); border: 0.5px solid rgba(239,159,39,.25); }
+.age-red { background: rgba(216,90,48,.15); color: var(--red-l); border: 0.5px solid rgba(216,90,48,.25); }
+
+/* ── SOURCE BADGE ── */
+.src-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-family: 'Courier New', monospace; letter-spacing: .04em;
+}
+.src-cian { background: rgba(55,138,221,.15); color: var(--blue); border: 0.5px solid rgba(55,138,221,.25); }
+.src-avito { background: rgba(159,124,219,.15); color: var(--purple); border: 0.5px solid rgba(159,124,219,.25); }
+
+/* ── OWNER BADGE ── */
+.owner-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-family: 'Courier New', monospace;
+}
+.owner-own { background: rgba(29,158,117,.12); color: var(--green-l); border: 0.5px solid rgba(29,158,117,.2); }
+.owner-agent { background: rgba(239,159,39,.12); color: var(--amber); border: 0.5px solid rgba(239,159,39,.2); }
+
+/* ── SUPPLY CHART ── */
+.chart-wrap-sm { position: relative; width: 100%; height: 200px; }
+
+/* ── FOOTER ── */
+footer {
+  text-align: center; font-size: 11px; color: var(--muted2);
+  font-family: 'Courier New', monospace; margin-top: 2.5rem;
+  padding-top: 1.2rem; border-top: 0.5px solid var(--b1);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 800px) {
+  .summary { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 500px) {
+  .summary { grid-template-columns: 1fr; }
+  h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Мониторинг аренды студий</h1>
+<p class="sub">парсинг Авито + ЦИАН · ежедневное обновление</p>
+<p class="zone">зона: Фонтанка → Рузовская → Обводный канал → Измайловский пр-т</p>
+
+<!-- ═══════════════ БЛОК 1: СВОДКА ═══════════════ -->
+<div class="summary">
+  <div class="scard">
+    <div class="scard-label">Минимум</div>
+    <div class="scard-value g">18 500 ₽</div>
+    <div class="scard-delta down">↓ 1 500 за неделю</div>
+  </div>
+  <div class="scard">
+    <div class="scard-label">Максимум</div>
+    <div class="scard-value r">58 000 ₽</div>
+    <div class="scard-delta up">↑ 3 000 за неделю</div>
+  </div>
+  <div class="scard">
+    <div class="scard-label">Средняя цена</div>
+    <div class="scard-value a">32 400 ₽</div>
+    <div class="scard-delta up">↑ 800 за неделю</div>
+  </div>
+  <div class="scard">
+    <div class="scard-label">Объявлений</div>
+    <div class="scard-value b">47</div>
+    <div class="scard-delta neutral">= без изменений</div>
+  </div>
+</div>
+
+<!-- ═══════════════ БЛОК 2: ГРАФИК ЦЕН ═══════════════ -->
+<div class="card">
+  <div class="card-head">
+    <span>Динамика цен</span>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <div class="period-tabs" id="stepTabs">
+        <div class="period-tab active" onclick="setStep('day',this)">день</div>
+        <div class="period-tab" onclick="setStep('week',this)">неделя</div>
+        <div class="period-tab" onclick="setStep('month',this)">месяц</div>
+      </div>
+      <span style="color:var(--muted2);font-family:'Courier New',monospace;font-size:10px;">│</span>
+      <div class="period-tabs" id="periodTabs">
+        <div class="period-tab active" onclick="setPeriod(30,this)">30д</div>
+        <div class="period-tab" onclick="setPeriod(60,this)">60д</div>
+        <div class="period-tab" onclick="setPeriod(90,this)">90д</div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#5dcaa5"></span>Минимум</span>
+    <span><span class="dot" style="background:#ef9f27"></span>Средняя</span>
+    <span><span class="dot" style="background:#ef9f7a"></span>Максимум</span>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="priceChart"></canvas>
+  </div>
+</div>
+
+<!-- ═══════════════ БЛОК 3: ТАБЛИЦА ОБЪЯВЛЕНИЙ ═══════════════ -->
+<div class="card">
+  <div class="card-head">
+    <span>Текущие объявления (47)</span>
+  </div>
+  <div class="tbl-wrap">
+    <table id="listingsTable">
+      <thead>
+        <tr>
+          <th>Адрес</th>
+          <th class="num">Площадь</th>
+          <th class="num">Аренда</th>
+          <th class="num">Ком-ка</th>
+          <th>Кто</th>
+          <th>Площадка</th>
+          <th>Возраст</th>
+          <th>Ссылка</th>
+        </tr>
+      </thead>
+      <tbody id="listingsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ БЛОК 4: АНАЛИТИКА ПРЕДЛОЖЕНИЯ ═══════════════ -->
+<div class="card">
+  <div class="card-head">
+    <span>Количество объявлений</span>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <div class="period-tabs" id="supplyStepTabs">
+        <div class="period-tab active" onclick="setSupplyStep('day',this)">день</div>
+        <div class="period-tab" onclick="setSupplyStep('week',this)">неделя</div>
+        <div class="period-tab" onclick="setSupplyStep('month',this)">месяц</div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#378add"></span>Авито</span>
+    <span><span class="dot" style="background:#9f7cdb"></span>ЦИАН</span>
+  </div>
+  <div class="chart-wrap-sm">
+    <canvas id="supplyChart"></canvas>
+  </div>
+</div>
+
+<footer>
+  Последнее обновление: 29 марта 2026, 06:00 · парсер v1.0 · разработано Gesolutions©
+</footer>
+
+</div>
+
+<script>
+// ═══════════════ MOCK DATA ═══════════════
+
+function generateDates(n) {
+  const dates = [];
+  const now = new Date(2026, 2, 29);
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    dates.push(d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }));
+  }
+  return dates;
+}
+
+function mockPrices(n, base, spread) {
+  const arr = [];
+  let v = base;
+  for (let i = 0; i < n; i++) {
+    v += (Math.random() - 0.48) * spread;
+    arr.push(Math.round(v));
+  }
+  return arr;
+}
+
+const labels30 = generateDates(30);
+const minPrices30 = mockPrices(30, 19000, 600);
+const avgPrices30 = mockPrices(30, 32000, 800);
+const maxPrices30 = mockPrices(30, 55000, 1200);
+
+// ═══════════════ PRICE CHART ═══════════════
+
+const priceCtx = document.getElementById('priceChart').getContext('2d');
+const priceChart = new Chart(priceCtx, {
+  type: 'line',
+  data: {
+    labels: labels30,
+    datasets: [
+      {
+        label: 'Минимум',
+        data: minPrices30,
+        borderColor: '#5dcaa5',
+        backgroundColor: 'rgba(93,202,165,0.08)',
+        fill: false, tension: 0.35, borderWidth: 2, pointRadius: 0,
+        pointHoverRadius: 5, pointHoverBackgroundColor: '#5dcaa5',
+      },
+      {
+        label: 'Средняя',
+        data: avgPrices30,
+        borderColor: '#ef9f27',
+        backgroundColor: 'rgba(239,159,39,0.08)',
+        fill: false, tension: 0.35, borderWidth: 2, pointRadius: 0,
+        pointHoverRadius: 5, pointHoverBackgroundColor: '#ef9f27',
+      },
+      {
+        label: 'Максимум',
+        data: maxPrices30,
+        borderColor: '#ef9f7a',
+        backgroundColor: 'rgba(239,159,122,0.08)',
+        fill: false, tension: 0.35, borderWidth: 2, pointRadius: 0,
+        pointHoverRadius: 5, pointHoverBackgroundColor: '#ef9f7a',
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#1c1c21', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5,
+      titleFont: { family: 'Courier New', size: 12 },
+      bodyFont: { family: 'Courier New', size: 12 },
+      callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('ru') + ' ₽' }
+    }},
+    scales: {
+      x: {
+        ticks: { color: '#444440', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 10 },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        border: { color: 'rgba(255,255,255,0.06)' }
+      },
+      y: {
+        ticks: {
+          color: '#444440', font: { family: 'Courier New', size: 10 },
+          callback: v => (v/1000).toFixed(0) + 'к'
+        },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        border: { color: 'rgba(255,255,255,0.06)' }
+      }
+    }
+  }
+});
+
+let currentPeriod = 30;
+let currentStep = 'day';
+
+function generateGroupedData(days, step, base, spread) {
+  const raw = mockPrices(days, base, spread);
+  const rawLabels = generateDates(days);
+  if (step === 'day') return { labels: rawLabels, data: raw };
+  
+  const groupSize = step === 'week' ? 7 : 30;
+  const labels = [], data = [];
+  for (let i = 0; i < raw.length; i += groupSize) {
+    const chunk = raw.slice(i, i + groupSize);
+    const avg = Math.round(chunk.reduce((a, b) => a + b, 0) / chunk.length);
+    data.push(avg);
+    const startLabel = rawLabels[i];
+    const endIdx = Math.min(i + groupSize - 1, rawLabels.length - 1);
+    const endLabel = rawLabels[endIdx];
+    labels.push(step === 'week' ? startLabel + '–' + endLabel : startLabel);
+  }
+  return { labels, data };
+}
+
+function updatePriceChart() {
+  const minD = generateGroupedData(currentPeriod, currentStep, 19000, 600);
+  const avgD = generateGroupedData(currentPeriod, currentStep, 32000, 800);
+  const maxD = generateGroupedData(currentPeriod, currentStep, 55000, 1200);
+  priceChart.data.labels = minD.labels;
+  priceChart.data.datasets[0].data = minD.data;
+  priceChart.data.datasets[1].data = avgD.data;
+  priceChart.data.datasets[2].data = maxD.data;
+  // Show points for week/month steps
+  const showPoints = currentStep !== 'day';
+  priceChart.data.datasets.forEach(ds => {
+    ds.pointRadius = showPoints ? 4 : 0;
+    ds.pointHoverRadius = showPoints ? 6 : 5;
+  });
+  priceChart.update();
+}
+
+function setPeriod(days, el) {
+  document.querySelectorAll('#periodTabs .period-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentPeriod = days;
+  updatePriceChart();
+}
+
+function setStep(step, el) {
+  document.querySelectorAll('#stepTabs .period-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentStep = step;
+  updatePriceChart();
+}
+
+// ═══════════════ MOCK LISTINGS TABLE ═══════════════
+
+const streets = [
+  'Подольская ул., 38', 'Подольская ул., 39', 'Серпуховская ул., 12',
+  'Бронницкая ул., 5', 'Верейская ул., 18', 'Рузовская ул., 24',
+  '1-я Красноарм., 7', '3-я Красноарм., 22', 'Клинский пр., 15',
+  'Можайская ул., 8', 'Малодетскос. пр., 3', 'Батайский пер., 6',
+  'Дойников пер., 9', '2-я Красноарм., 11', '4-я Красноарм., 30',
+  'Серпуховская ул., 44', 'Подольская ул., 17', 'Бронницкая ул., 21',
+  'Рузовская ул., 10', '5-я Красноарм., 19',
+];
+
+const mockListings = [];
+for (let i = 0; i < 20; i++) {
+  const price = Math.round((18 + Math.random() * 40) * 1000);
+  const area = Math.round(15 + Math.random() * 18);
+  const comm = Math.round(2 + Math.random() * 5) * 500;
+  const days = Math.floor(Math.random() * 35);
+  const src = Math.random() > 0.45 ? 'cian' : 'avito';
+  const owner = Math.random() > 0.4 ? 'own' : 'agent';
+  const fakeId = Math.floor(100000000 + Math.random() * 900000000);
+  const url = src === 'cian'
+    ? 'https://spb.cian.ru/rent/flat/' + fakeId + '/'
+    : 'https://www.avito.ru/sankt-peterburg/kvartiry/' + fakeId;
+  mockListings.push({
+    address: streets[i % streets.length],
+    area, price, comm, days, src, owner, url
+  });
+}
+
+mockListings.sort((a, b) => a.price - b.price);
+
+function ageBadge(d) {
+  if (d <= 7) return `<span class="age-badge age-green">${d}д</span>`;
+  if (d <= 15) return `<span class="age-badge age-yellow">${d}д</span>`;
+  return `<span class="age-badge age-red">${d}д</span>`;
+}
+
+function srcBadge(s) {
+  return s === 'cian'
+    ? '<span class="src-badge src-cian">ЦИАН</span>'
+    : '<span class="src-badge src-avito">АВИТО</span>';
+}
+
+function ownerBadge(o) {
+  return o === 'own'
+    ? '<span class="owner-badge owner-own">собственник</span>'
+    : '<span class="owner-badge owner-agent">агент</span>';
+}
+
+const tbody = document.getElementById('listingsBody');
+mockListings.forEach(l => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${l.address}</td>
+    <td class="num">${l.area} м²</td>
+    <td class="num">${l.price.toLocaleString('ru')} ₽</td>
+    <td class="num dim">${l.comm.toLocaleString('ru')} ₽</td>
+    <td>${ownerBadge(l.owner)}</td>
+    <td>${srcBadge(l.src)}</td>
+    <td>${ageBadge(l.days)}</td>
+    <td><a href="${l.url}" target="_blank" rel="noopener">открыть ↗</a></td>
+  `;
+  tbody.appendChild(tr);
+});
+
+// ═══════════════ SUPPLY CHART ═══════════════
+
+const supplyCtx = document.getElementById('supplyChart').getContext('2d');
+const supplyLabels = generateDates(90);
+const avitoRaw = Array.from({length: 90}, () => Math.floor(18 + Math.random() * 12));
+const cianRaw = Array.from({length: 90}, () => Math.floor(12 + Math.random() * 10));
+
+function groupSupply(raw, labels, step) {
+  if (step === 'day') return { labels: labels.slice(-30), data: raw.slice(-30) };
+  const groupSize = step === 'week' ? 7 : 30;
+  const gl = [], gd = [];
+  for (let i = 0; i < raw.length; i += groupSize) {
+    const chunk = raw.slice(i, i + groupSize);
+    gd.push(Math.round(chunk.reduce((a, b) => a + b, 0) / chunk.length));
+    const s = labels[i];
+    const e = labels[Math.min(i + groupSize - 1, labels.length - 1)];
+    gl.push(step === 'week' ? s + '–' + e : s);
+  }
+  return { labels: gl, data: gd };
+}
+
+const supplyChart = new Chart(supplyCtx, {
+  type: 'bar',
+  data: {
+    labels: supplyLabels.slice(-30),
+    datasets: [
+      {
+        label: 'Авито',
+        data: avitoRaw.slice(-30),
+        backgroundColor: 'rgba(55,138,221,0.55)',
+        borderColor: 'rgba(55,138,221,0.8)',
+        borderWidth: 0.5, borderRadius: 3,
+      },
+      {
+        label: 'ЦИАН',
+        data: cianRaw.slice(-30),
+        backgroundColor: 'rgba(159,124,219,0.45)',
+        borderColor: 'rgba(159,124,219,0.7)',
+        borderWidth: 0.5, borderRadius: 3,
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#1c1c21', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5,
+      titleFont: { family: 'Courier New', size: 12 },
+      bodyFont: { family: 'Courier New', size: 12 },
+    }},
+    scales: {
+      x: {
+        stacked: true,
+        ticks: { color: '#444440', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 10 },
+        grid: { display: false },
+        border: { color: 'rgba(255,255,255,0.06)' }
+      },
+      y: {
+        stacked: true,
+        ticks: { color: '#444440', font: { family: 'Courier New', size: 10 } },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        border: { color: 'rgba(255,255,255,0.06)' }
+      }
+    }
+  }
+});
+
+function setSupplyStep(step, el) {
+  document.querySelectorAll('#supplyStepTabs .period-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const a = groupSupply(avitoRaw, supplyLabels, step);
+  const c = groupSupply(cianRaw, supplyLabels, step);
+  supplyChart.data.labels = a.labels;
+  supplyChart.data.datasets[0].data = a.data;
+  supplyChart.data.datasets[1].data = c.data;
+  supplyChart.update();
+}
+
+// ═══════════════ TABLE SORT ═══════════════
+
+document.querySelectorAll('#listingsTable thead th').forEach((th, i) => {
+  let asc = true;
+  th.addEventListener('click', () => {
+    const rows = Array.from(document.querySelectorAll('#listingsTable tbody tr'));
+    rows.sort((a, b) => {
+      let va = a.cells[i].textContent.trim();
+      let vb = b.cells[i].textContent.trim();
+      const na = parseFloat(va.replace(/[^\d.-]/g, ''));
+      const nb = parseFloat(vb.replace(/[^\d.-]/g, ''));
+      if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+      return asc ? va.localeCompare(vb, 'ru') : vb.localeCompare(va, 'ru');
+    });
+    rows.forEach(r => tbody.appendChild(r));
+    asc = !asc;
+  });
+});
+</script>
+</body>
+</html>

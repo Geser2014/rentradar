@@ -1,0 +1,9 @@
+[Unit]
+Description=RentRadar daily at 06:00 MSK
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

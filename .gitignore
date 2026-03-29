@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.db
+*.log
+.env
+venv/
+data/rentradar.db
+dashboard/data/*.json
+logs/
+.claude/
+Хост
+generate_test_data.py
+test_*.py
+settings.json

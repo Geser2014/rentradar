@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мониторинг аренды — Студии СПб</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0c0c0e;
+  --s1: #141417;
+  --s2: #1c1c21;
+  --s3: #28282f;
+  --b1: rgba(255,255,255,0.055);
+  --b2: rgba(255,255,255,0.10);
+  --b3: rgba(255,255,255,0.17);
+  --text: #eeede6;
+  --muted: #777770;
+  --muted2: #444440;
+  --green: #1d9e75;
+  --green-l: #5dcaa5;
+  --amber: #ef9f27;
+  --red-l: #ef9f7a;
+  --red: #d85a30;
+  --blue: #378add;
+  --purple: #9f7cdb;
+  --r: 10px;
+  --rsm: 7px;
+}
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  min-height: 100vh; padding: 2rem 1rem 4rem;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+
+h1 { font-size: 1.85rem; font-weight: normal; letter-spacing: -.025em; margin-bottom: .25rem; }
+.sub { font-size: 12px; color: var(--muted); font-family: 'Courier New', monospace; margin-bottom: .4rem; }
+.zone { font-size: 11px; color: var(--muted2); font-family: 'Courier New', monospace; margin-bottom: 2rem; }
+
+/* ── SUMMARY CARDS ── */
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
+.scard {
+  background: var(--s1); border: 0.5px solid var(--b2);
+  border-radius: var(--r); padding: 1rem 1.2rem;
+}
+.scard-label {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); font-family: 'Courier New', monospace; margin-bottom: 6px;
+}
+.scard-value {
+  font-size: 1.55rem; font-weight: bold;
+  font-family: 'Courier New', monospace; line-height: 1.2;
+}
+.scard-value.g { color: var(--green-l); }
+.scard-value.r { color: var(--red-l); }
+.scard-value.a { color: var(--amber); }
+.scard-value.b { color: var(--blue); }
+.scard-delta {
+  font-size: 11px; font-family: 'Courier New', monospace;
+  margin-top: 4px;
+}
+.scard-delta.up { color: var(--red-l); }
+.scard-delta.down { color: var(--green-l); }
+.scard-delta.neutral { color: var(--muted2); }
+
+/* ── CARD ── */
+.card {
+  background: var(--s1); border: 0.5px solid var(--b2);
+  border-radius: var(--r); padding: 1.2rem 1.4rem; margin-bottom: .85rem;
+}
+.card-head {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); font-family: 'Courier New', monospace; margin-bottom: 1rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* ── PERIOD TABS ── */
+.period-tabs { display: flex; gap: 4px; }
+.period-tab {
+  background: var(--s2); border: 0.5px solid var(--b2); border-radius: var(--rsm);
+  color: var(--muted); font-size: 11px; font-family: 'Courier New', monospace;
+  padding: 4px 12px; cursor: pointer; transition: all .15s;
+}
+.period-tab.active { background: var(--green); color: #fff; border-color: var(--green); }
+.period-tab:hover:not(.active) { border-color: var(--b3); color: var(--text); }
+
+/* ── CHART ── */
+.chart-wrap { position: relative; width: 100%; height: 280px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; }
+.legend span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-family: 'Courier New', monospace; }
+.dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── TABLE ── */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-family: 'Courier New', monospace; font-size: 12px; min-width: 900px; }
+thead th {
+  color: var(--muted); font-weight: normal; text-align: left;
+  padding: .55rem .65rem; letter-spacing: .04em; white-space: nowrap;
+  border-bottom: 0.5px solid var(--b2); cursor: pointer; user-select: none;
+}
+thead th:hover { color: var(--text); }
+thead th.num { text-align: right; }
+tbody tr { border-bottom: 0.5px solid var(--b1); transition: background .1s; }
+tbody tr:hover { background: var(--s2); }
+td { padding: .45rem .65rem; white-space: nowrap; }
+td.num { text-align: right; }
+td.g { color: var(--green-l); }
+td.a { color: var(--amber); }
+td.r { color: var(--red-l); }
+td.dim { color: var(--muted2); }
+td a { color: var(--blue); text-decoration: none; }
+td a:hover { text-decoration: underline; }
+
+/* ── AGE BADGES ── */
+.age-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-family: 'Courier New', monospace; font-weight: bold;
+}
+.age-green { background: rgba(29,158,117,.18); color: var(--green-l); border: 0.5px solid rgba(29,158,117,.3); }
+.age-yellow { background: rgba(239,159,39,.15); color: var(--amber); border: 0.5px solid rgba(239,159,39,.25); }
+.age-red { background: rgba(216,90,48,.15); color: var(--red-l); border: 0.5px solid rgba(216,90,48,.25); }
+
+/* ── SOURCE BADGE ── */
+.src-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-family: 'Courier New', monospace; letter-spacing: .04em;
+}
+.src-cian { background: rgba(55,138,221,.15); color: var(--blue); border: 0.5px solid rgba(55,138,221,.25); }
+.src-avito { background: rgba(159,124,219,.15); color: var(--purple); border: 0.5px solid rgba(159,124,219,.25); }
+
+/* ── OWNER BADGE ── */
+.owner-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-family: 'Courier New', monospace;
+}
+.owner-own { background: rgba(29,158,117,.12); color: var(--green-l); border: 0.5px solid rgba(29,158,117,.2); }
+.owner-agent { background: rgba(239,159,39,.12); color: var(--amber); border: 0.5px solid rgba(239,159,39,.2); }
+
+/* ── SUPPLY CHART ── */
+.chart-wrap-sm { position: relative; width: 100%; height: 200px; }
+
+/* ── NO DATA ── */
+.no-data {
+  text-align: center; padding: 3rem; color: var(--muted2);
+  font-family: 'Courier New', monospace; font-size: 13px;
+}
+
+/* ── FOOTER ── */
+footer {
+  text-align: center; font-size: 11px; color: var(--muted2);
+  font-family: 'Courier New', monospace; margin-top: 2.5rem;
+  padding-top: 1.2rem; border-top: 0.5px solid var(--b1);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 800px) {
+  .summary { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 500px) {
+  .summary { grid-template-columns: 1fr; }
+  h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Мониторинг аренды студий</h1>
+<p class="sub">парсинг Авито + ЦИАН · ежедневное обновление</p>
+<p class="zone">зона: Фонтанка &rarr; Рузовская &rarr; Обводный канал &rarr; Измайловский пр-т</p>
+
+<!-- ═══════════════ БЛОК 1: СВОДКА ═══════════════ -->
+<div class="summary" id="summaryCards">
+  <div class="scard">
+    <div class="scard-label">Минимум</div>
+    <div class="scard-value g" id="valMin">—</div>
+    <div class="scard-delta neutral" id="deltaMin">загрузка...</div>
+  </div>
+  <div class="scard">
+    <div class="scard-label">Максимум</div>
+    <div class="scard-value r" id="valMax">—</div>
+    <div class="scard-delta neutral" id="deltaMax">загрузка...</div>
+  </div>
+  <div class="scard">
+    <div class="scard-label">Средняя цена</div>
+    <div class="scard-value a" id="valAvg">—</div>
+    <div class="scard-delta neutral" id="deltaAvg">загрузка...</div>
+  </div>
+  <div class="scard">
+    <div class="scard-label">Объявлений</div>
+    <div class="scard-value b" id="valCount">—</div>
+    <div class="scard-delta neutral" id="deltaCount">загрузка...</div>
+  </div>
+</div>
+
+<!-- ═══════════════ БЛОК 2: ГРАФИК ЦЕН ═══════════════ -->
+<div class="card">
+  <div class="card-head">
+    <span>Динамика цен</span>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <div class="period-tabs" id="stepTabs">
+        <div class="period-tab active" onclick="setStep('day',this)">день</div>
+        <div class="period-tab" onclick="setStep('week',this)">неделя</div>
+        <div class="period-tab" onclick="setStep('month',this)">месяц</div>
+      </div>
+      <span style="color:var(--muted2);font-family:'Courier New',monospace;font-size:10px;">|</span>
+      <div class="period-tabs" id="periodTabs">
+        <div class="period-tab active" onclick="setPeriod(30,this)">30д</div>
+        <div class="period-tab" onclick="setPeriod(60,this)">60д</div>
+        <div class="period-tab" onclick="setPeriod(90,this)">90д</div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#5dcaa5"></span>Минимум</span>
+    <span><span class="dot" style="background:#ef9f27"></span>Средняя</span>
+    <span><span class="dot" style="background:#ef9f7a"></span>Максимум</span>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="priceChart"></canvas>
+  </div>
+</div>
+
+<!-- ═══════════════ БЛОК 3: ТАБЛИЦА ОБЪЯВЛЕНИЙ ═══════════════ -->
+<div class="card">
+  <div class="card-head">
+    <span id="tableTitle">Текущие объявления</span>
+  </div>
+  <div class="tbl-wrap">
+    <table id="listingsTable">
+      <thead>
+        <tr>
+          <th>Адрес</th>
+          <th class="num">Площадь</th>
+          <th class="num">Аренда</th>
+          <th class="num">Ком-ка</th>
+          <th>Кто</th>
+          <th>Площадка</th>
+          <th>Возраст</th>
+          <th>Ссылка</th>
+        </tr>
+      </thead>
+      <tbody id="listingsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ БЛОК 4: АНАЛИТИКА ПРЕДЛОЖЕНИЯ ═══════════════ -->
+<div class="card">
+  <div class="card-head">
+    <span>Количество объявлений</span>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <div class="period-tabs" id="supplyStepTabs">
+        <div class="period-tab active" onclick="setSupplyStep('day',this)">день</div>
+        <div class="period-tab" onclick="setSupplyStep('week',this)">неделя</div>
+        <div class="period-tab" onclick="setSupplyStep('month',this)">месяц</div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#378add"></span>Авито</span>
+    <span><span class="dot" style="background:#9f7cdb"></span>ЦИАН</span>
+  </div>
+  <div class="chart-wrap-sm">
+    <canvas id="supplyChart"></canvas>
+  </div>
+</div>
+
+<footer id="footer">
+  Последнее обновление: — · парсер v1.0 · разработано Gesolutions&copy;
+</footer>
+
+</div>
+
+<script>
+// ═══════════════ DATA LOADING ═══════════════
+
+const DATA_BASE = 'data/';
+let statsData = null;
+let currentData = null;
+let historyData = null;
+
+let currentPeriod = 30;
+let currentStep = 'day';
+let priceChart = null;
+let supplyChart = null;
+
+async function loadJSON(file) {
+  try {
+    const resp = await fetch(DATA_BASE + file);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  } catch (e) {
+    console.warn('Failed to load ' + file + ':', e);
+    return null;
+  }
+}
+
+async function init() {
+  [statsData, currentData, historyData] = await Promise.all([
+    loadJSON('stats.json'),
+    loadJSON('current.json'),
+    loadJSON('history.json'),
+  ]);
+
+  renderSummary();
+  renderTable();
+  initPriceChart();
+  initSupplyChart();
+  renderFooter();
+}
+
+// ═══════════════ SUMMARY CARDS ═══════════════
+
+function fmt(n) {
+  if (n == null) return '—';
+  return n.toLocaleString('ru-RU');
+}
+
+function renderSummary() {
+  if (!statsData) {
+    document.getElementById('valMin').textContent = '—';
+    document.getElementById('valMax').textContent = '—';
+    document.getElementById('valAvg').textContent = '—';
+    document.getElementById('valCount').textContent = '0';
+    ['deltaMin','deltaMax','deltaAvg','deltaCount'].forEach(id => {
+      const el = document.getElementById(id);
+      el.textContent = 'нет данных';
+      el.className = 'scard-delta neutral';
+    });
+    return;
+  }
+
+  const c = statsData.current;
+  const d = statsData.deltas;
+
+  document.getElementById('valMin').textContent = fmt(c.min_price) + ' \u20BD';
+  document.getElementById('valMax').textContent = fmt(c.max_price) + ' \u20BD';
+  document.getElementById('valAvg').textContent = fmt(c.avg_price) + ' \u20BD';
+  document.getElementById('valCount').textContent = fmt(c.total_count);
+
+  setDelta('deltaMin', d.min_price);
+  setDelta('deltaMax', d.max_price);
+  setDelta('deltaAvg', d.avg_price);
+  setDelta('deltaCount', d.total_count);
+}
+
+function setDelta(id, delta) {
+  const el = document.getElementById(id);
+  if (!delta || delta.direction === 'neutral') {
+    el.textContent = '= без изменений';
+    el.className = 'scard-delta neutral';
+  } else {
+    const arrow = delta.direction === 'up' ? '\u2191' : '\u2193';
+    el.textContent = arrow + ' ' + fmt(Math.abs(delta.value)) + ' за неделю';
+    el.className = 'scard-delta ' + delta.direction;
+  }
+}
+
+// ═══════════════ TABLE ═══════════════
+
+function ageBadge(days, color) {
+  const cls = color === 'green' ? 'age-green' : color === 'yellow' ? 'age-yellow' : 'age-red';
+  return '<span class="age-badge ' + cls + '">' + days + 'д</span>';
+}
+
+function srcBadge(s) {
+  return s === 'cian'
+    ? '<span class="src-badge src-cian">ЦИАН</span>'
+    : '<span class="src-badge src-avito">АВИТО</span>';
+}
+
+function ownerBadge(o) {
+  if (o === 'owner') return '<span class="owner-badge owner-own">собственник</span>';
+  if (o === 'agent') return '<span class="owner-badge owner-agent">агент</span>';
+  return '<span class="owner-badge" style="color:var(--muted2)">—</span>';
+}
+
+function renderTable() {
+  const tbody = document.getElementById('listingsBody');
+  const titleEl = document.getElementById('tableTitle');
+  tbody.innerHTML = '';
+
+  if (!currentData || !currentData.listings || currentData.listings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="no-data">Нет данных</td></tr>';
+    titleEl.textContent = 'Текущие объявления (0)';
+    return;
+  }
+
+  titleEl.textContent = 'Текущие объявления (' + currentData.count + ')';
+
+  currentData.listings.forEach(function(l) {
+    const tr = document.createElement('tr');
+    const commText = l.communal != null ? fmt(l.communal) + ' \u20BD' : '—';
+    tr.innerHTML =
+      '<td>' + esc(l.address) + '</td>' +
+      '<td class="num">' + (l.area != null ? l.area + ' м\u00B2' : '—') + '</td>' +
+      '<td class="num">' + fmt(l.price) + ' \u20BD</td>' +
+      '<td class="num dim">' + commText + '</td>' +
+      '<td>' + ownerBadge(l.owner_type) + '</td>' +
+      '<td>' + srcBadge(l.source) + '</td>' +
+      '<td>' + ageBadge(l.days_active, l.age_color) + '</td>' +
+      '<td><a href="' + esc(l.url) + '" target="_blank" rel="noopener">открыть \u2197</a></td>';
+    tbody.appendChild(tr);
+  });
+
+  // Table sorting
+  document.querySelectorAll('#listingsTable thead th').forEach(function(th, i) {
+    let asc = true;
+    th.addEventListener('click', function() {
+      const rows = Array.from(document.querySelectorAll('#listingsTable tbody tr'));
+      rows.sort(function(a, b) {
+        var va = a.cells[i].textContent.trim();
+        var vb = b.cells[i].textContent.trim();
+        var na = parseFloat(va.replace(/[^\d.\-]/g, ''));
+        var nb = parseFloat(vb.replace(/[^\d.\-]/g, ''));
+        if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+        return asc ? va.localeCompare(vb, 'ru') : vb.localeCompare(va, 'ru');
+      });
+      rows.forEach(function(r) { tbody.appendChild(r); });
+      asc = !asc;
+    });
+  });
+}
+
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ═══════════════ PRICE CHART ═══════════════
+
+function groupData(items, step, field) {
+  if (!items || items.length === 0) return { labels: [], data: [] };
+
+  if (step === 'day') {
+    return {
+      labels: items.map(function(r) { return formatDate(r.date); }),
+      data: items.map(function(r) { return r[field]; })
+    };
+  }
+
+  var groupSize = step === 'week' ? 7 : 30;
+  var labels = [], data = [];
+  for (var i = 0; i < items.length; i += groupSize) {
+    var chunk = items.slice(i, i + groupSize);
+    var vals = chunk.map(function(r) { return r[field]; }).filter(function(v) { return v != null; });
+    if (vals.length === 0) continue;
+    var avg = Math.round(vals.reduce(function(a, b) { return a + b; }, 0) / vals.length);
+    data.push(avg);
+    var startLabel = formatDate(chunk[0].date);
+    var endLabel = formatDate(chunk[chunk.length - 1].date);
+    labels.push(step === 'week' ? startLabel + '–' + endLabel : startLabel);
+  }
+  return { labels: labels, data: data };
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  var parts = d.split('-');
+  return parts[2] + '.' + parts[1];
+}
+
+function filterByPeriod(items, days) {
+  if (!items) return [];
+  if (items.length <= days) return items;
+  return items.slice(-days);
+}
+
+function initPriceChart() {
+  var ctx = document.getElementById('priceChart').getContext('2d');
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'Минимум', data: [], borderColor: '#5dcaa5', backgroundColor: 'rgba(93,202,165,0.08)', fill: false, tension: 0.35, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#5dcaa5' },
+      { label: 'Средняя', data: [], borderColor: '#ef9f27', backgroundColor: 'rgba(239,159,39,0.08)', fill: false, tension: 0.35, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#ef9f27' },
+      { label: 'Максимум', data: [], borderColor: '#ef9f7a', backgroundColor: 'rgba(239,159,122,0.08)', fill: false, tension: 0.35, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#ef9f7a' }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: '#1c1c21', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5,
+        titleFont: { family: 'Courier New', size: 12 },
+        bodyFont: { family: 'Courier New', size: 12 },
+        callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('ru') + ' \u20BD'; } }
+      }},
+      scales: {
+        x: { ticks: { color: '#444440', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: 'rgba(255,255,255,0.06)' } },
+        y: { ticks: { color: '#444440', font: { family: 'Courier New', size: 10 }, callback: function(v) { return (v/1000).toFixed(0) + 'к'; } }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: 'rgba(255,255,255,0.06)' } }
+      }
+    }
+  });
+  updatePriceChart();
+}
+
+function updatePriceChart() {
+  if (!priceChart) return;
+  var items = historyData ? filterByPeriod(historyData.price_history, currentPeriod) : [];
+
+  if (items.length === 0) {
+    priceChart.data.labels = [];
+    priceChart.data.datasets.forEach(function(ds) { ds.data = []; });
+    priceChart.update();
+    return;
+  }
+
+  var minD = groupData(items, currentStep, 'min');
+  var avgD = groupData(items, currentStep, 'avg');
+  var maxD = groupData(items, currentStep, 'max');
+
+  priceChart.data.labels = minD.labels;
+  priceChart.data.datasets[0].data = minD.data;
+  priceChart.data.datasets[1].data = avgD.data;
+  priceChart.data.datasets[2].data = maxD.data;
+
+  var showPoints = currentStep !== 'day';
+  priceChart.data.datasets.forEach(function(ds) {
+    ds.pointRadius = showPoints ? 4 : 0;
+    ds.pointHoverRadius = showPoints ? 6 : 5;
+  });
+  priceChart.update();
+}
+
+function setPeriod(days, el) {
+  document.querySelectorAll('#periodTabs .period-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  currentPeriod = days;
+  updatePriceChart();
+}
+
+function setStep(step, el) {
+  document.querySelectorAll('#stepTabs .period-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  currentStep = step;
+  updatePriceChart();
+}
+
+// ═══════════════ SUPPLY CHART ═══════════════
+
+function initSupplyChart() {
+  var ctx = document.getElementById('supplyChart').getContext('2d');
+  supplyChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { label: 'Авито', data: [], backgroundColor: 'rgba(55,138,221,0.55)', borderColor: 'rgba(55,138,221,0.8)', borderWidth: 0.5, borderRadius: 3 },
+      { label: 'ЦИАН', data: [], backgroundColor: 'rgba(159,124,219,0.45)', borderColor: 'rgba(159,124,219,0.7)', borderWidth: 0.5, borderRadius: 3 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: '#1c1c21', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5,
+        titleFont: { family: 'Courier New', size: 12 },
+        bodyFont: { family: 'Courier New', size: 12 }
+      }},
+      scales: {
+        x: { stacked: true, ticks: { color: '#444440', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 10 }, grid: { display: false }, border: { color: 'rgba(255,255,255,0.06)' } },
+        y: { stacked: true, ticks: { color: '#444440', font: { family: 'Courier New', size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { color: 'rgba(255,255,255,0.06)' } }
+      }
+    }
+  });
+  updateSupplyChart('day');
+}
+
+function updateSupplyChart(step) {
+  if (!supplyChart) return;
+  var items = historyData ? historyData.supply_history : [];
+
+  if (items.length === 0) {
+    supplyChart.data.labels = [];
+    supplyChart.data.datasets.forEach(function(ds) { ds.data = []; });
+    supplyChart.update();
+    return;
+  }
+
+  var avitoD = groupData(items, step, 'avito');
+  var cianD = groupData(items, step, 'cian');
+
+  supplyChart.data.labels = avitoD.labels;
+  supplyChart.data.datasets[0].data = avitoD.data;
+  supplyChart.data.datasets[1].data = cianD.data;
+  supplyChart.update();
+}
+
+function setSupplyStep(step, el) {
+  document.querySelectorAll('#supplyStepTabs .period-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  updateSupplyChart(step);
+}
+
+// ═══════════════ FOOTER ═══════════════
+
+function renderFooter() {
+  var updated = '—';
+  if (statsData && statsData.updated_at) {
+    var d = new Date(statsData.updated_at);
+    updated = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) +
+      ', ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+  document.getElementById('footer').innerHTML =
+    'Последнее обновление: ' + updated +
+    ' \u00B7 парсер v1.0 \u00B7 разработано Gesolutions\u00A9';
+}
+
+// ═══════════════ INIT ═══════════════
+init();
+</script>
+</body>
+</html>
